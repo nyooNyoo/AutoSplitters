@@ -53,7 +53,7 @@ startup
     settings.Add("autoReset", false, "Automatically reset after making a new save");
     settings.Add("exhaustShow", false, "Shows your stamina in a new text element");
     settings.Add("IL", false, "Start timer on moving in any chapter (IL Mode)");
-    
+
     settings.Add("debugValues", false, "[Debug] Show tracked values");
 }
 
@@ -69,7 +69,7 @@ init
     });
 
     vars.UWorld = vars.GetStaticPointerFromSig("TODO");
-
+    //Infused.exe + 0x3371D88
     vars.watchers = new MemoryWatcherList
     {
         new MemoryWatcher<int>(new DeepPointer(vars.UWorld, 0x170, 0x180)) { Name = "chapterID"},
