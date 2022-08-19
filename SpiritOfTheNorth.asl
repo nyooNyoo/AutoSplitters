@@ -2,7 +2,7 @@ state("Infused-Win64-Shipping"){}
 
 startup
 {
-    // Asks user to change to game time if LiveSplit is currently set to Real Time.
+    // Prompt to ask for game time
     if (timer.CurrentTimingMethod == TimingMethod.RealTime)
     {        
         var timingMessage = MessageBox.Show (
@@ -36,17 +36,35 @@ startup
 
     settings.Add("Splits", true, "Splits");
     settings.Add("chapterSplit", true, "Split on chapter transition", "Splits");
+    settings.Add("checkpointSplit", false, "Split on every checkpoint", "Splits");
     settings.Add("shamanSplit", false, "Split on getting a shaman", "Splits");
-
     settings.Add("autoReset", false, "Automatically reset after making a new save");
+
+    settings.Add("ILMode", false, "IL Mode");
+    settings.Add("ILStart", true, "Start on moving in any chapter", "ILMode");
+    settings.Add("ILReset", false, "Reset on going to main menu", "ILMode");
+
     settings.Add("exhaustShow", false, "Shows your stamina in a new text element (Pre 1.3)");
-    settings.Add("IL", false, "Start timer on moving in any chapter (IL Mode)");
 
     settings.Add("debugValues", false, "[Debug] Show tracked values");
 }
 
 init
 {
+    int moduleSize = modules.First().ModuleMemorySize;
+    switch (moduleSize)
+    {
+        case 596:
+            version = "1.2";
+            break;
+        case 0:
+            varsion = "1.3";
+            break;
+        default:
+            version = "Unknown " + moduleSize.ToString;
+            break;
+    }
+    
     vars.GetStaticPointerFromSig = (Func<string, int, IntPtr>) ( (signature, instructionOffset) => {
         var scanner = new SignatureScanner(game, modules.First().BaseAddress, (int)modules.First().ModuleMemorySize);
         var pattern = new SigScanTarget(signature);
@@ -77,8 +95,10 @@ init
         new MemoryWatcher<int>(new DeepPointer(vars.GWorld, 0x170, 0x180)) { Name = "chapter"},
         new MemoryWatcher<int>(new DeepPointer(vars.GWorld, 0x170, 0x188)) { Name = "checkpoint"},
         new MemoryWatcher<int>(new DeepPointer(vars.GWorld, 0x170, 0x2F8)) { Name = "shaman"},
-        new MemoryWatcher<bool>(new DeepPointer(vars.GWorld, 0x170, 0x1E0, 0x974)) { Name = "isMoving"},
+
+        new MemoryWatcher<bool>(new DeepPointer(vars.GWorld, 0x170, 0x1E0, 0x974)) { Name = "moving"},
         new MemoryWatcher<bool>(new DeepPointer(vars.GSyncLoadCount)) { Name = "loading"},
+
         new MemoryWatcher<float>(new DeepPointer(vars.GWorld, 0x170, 0x1E0, 0x1228)) { Name = "exhaustLevel"}
     };
 }
@@ -86,23 +106,24 @@ init
 update
 {
     vars.watchers.UpdateAll(game);
-    current.chapter = vars.GetNameFromFName(watchers["chapter"].Current);
-    current.checkpoint = vars.watchers["checkpoint"].Current;
-    current.shamanID = vars.watchers["shaman"].Current;
-    current.isMoving = vars.watchers["isMoving"].Current;
+
+    current.chapter = vars.GetNameFromFName(vars.watchers["chapter"].Current);
+    current.checkpoint = vars.GetNameFromFName(vars.watchers["checkpoint"].Current);
+    current.shaman = vars.watchers["shaman"].Current;
+
+    current.moving = vars.watchers["moving"].Current;
     current.loading = vars.watchers["loading"].Current;
 
-    current.exhaustLevel = (vars.watchers["exhaustLevel"].Current *100).ToString() + "%";
+    current.exhaustLevel = ((1 - vars.watchers["exhaustLevel"].Current) * 100).ToString() + "%";
 
     if(settings["debugValues"])
     {
-        vars.SetTextComponent("CheckpointID", current.checkpointID.ToString());
-        vars.SetTextComponent("ChapterID", current.chapterID.ToString());
+        vars.SetTextComponent("Checkpoint", current.checkpoint);
         vars.SetTextComponent("Chapter", current.chapter);
+        vars.SetTextComponent("Shaman", current.shaman.ToString());
 
         vars.SetTextComponent("Moving?", current.isMoving.ToString());
         vars.SetTextComponent("Loading?", current.loading.ToString());
-        
     }
 
     if(settings["exhaustShow"])
@@ -113,20 +134,21 @@ update
 
 start
 {
-    if((current.chapter == "Chapter1" || settings["IL"]) && isMoving)
+    if(current.checkpoint == "00_01" || settings["ILStart"])
     {
-        return true;
+        return current.moving;
     }
-}
-
-onStart
-{
-    vars.chaptersVisited = new List<String>(){};
 }
 
 split
 {
-    if(current.chapter != old.chapter && !vars.chaptersVisited.Contains(current.chapter)
+    if((settings["chapterSplit"] && (current.chapter != old.chapter || current.checkpoint == "05_00" ||
+    (settings["checkpointSplit"] && current.checkpoint != old.checkpoint)
+    {
+        return true;
+    }
+
+    if(settings["shamanSplit"] && current.shaman != old.shaman)
     {
         return true;
     }
@@ -139,5 +161,9 @@ loading
 
 reset
 {
-    if(current.chapter != old.chapter && current.chapter == "Chapter1")
+    if((settings["autoReset"] && current.chapter != old.chapter && current.chapter == "Chapter1") ||
+    (settings["ILReset"] && current.condition)
+    {
+        return true;
+    }
 }
