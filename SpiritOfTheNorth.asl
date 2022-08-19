@@ -34,24 +34,12 @@ startup
             textSetting.GetType().GetProperty("Text2").SetValue(textSetting, text);
     });
 
-    vars.Chapters = new Dictionary<string, string>()
-    {
-        {"429437 872547", "Chapter1"},
-        {"429542 883115", "Chapter2"},
-        {"429640 883119", "Chapter3"},
-        {"429738 883137", "Chapter4"},
-        {"429738 883153", "Chapter5"},
-        {"429934 883185", "Chapter6"},
-        {"429836 883177", "Chapter7"},
-        {"430032 883197", "Chapter8"} 
-    };
-
     settings.Add("Splits", true, "Splits");
     settings.Add("chapterSplit", true, "Split on chapter transition", "Splits");
     settings.Add("shamanSplit", false, "Split on getting a shaman", "Splits");
 
     settings.Add("autoReset", false, "Automatically reset after making a new save");
-    settings.Add("exhaustShow", false, "Shows your stamina in a new text element");
+    settings.Add("exhaustShow", false, "Shows your stamina in a new text element (Pre 1.3)");
     settings.Add("IL", false, "Start timer on moving in any chapter (IL Mode)");
 
     settings.Add("debugValues", false, "[Debug] Show tracked values");
@@ -68,32 +56,43 @@ init
         return (IntPtr)location + offset + instructionOffset + 0x4;
     });
 
-    vars.UWorld = vars.GetStaticPointerFromSig("TODO");
-    //Infused.exe + 0x3371D88
+    vars.GetNameFromFName = (Func<long, string>) ( longKey => {
+        int key = (int)(longKey & uint.MaxValue);
+        int partial = (int)(longKey >> 32);
+        int chunkOffset = key >> 16;
+        int nameOffset = (ushort)key;
+        IntPtr namePoolChunk = memory.ReadValue<IntPtr>((IntPtr)vars.FNamePool + (chunkOffset+2) * 0x8);
+        Int16 nameEntry = game.ReadValue<Int16>((IntPtr)namePoolChunk + 2 * nameOffset);
+        int nameLength = nameEntry >> 6;
+        string output = game.ReadString((IntPtr)namePoolChunk + 2 * nameOffset + 2, nameLength);
+        return (partial == 0) ? output : output + "_" + partial.ToString();
+    });
+
+    vars.GWorld = vars.GetStaticPointerFromSig("48 8B 5C 24 ?? 48 89 1D ???????? 48 85 DB", 0x8);
+    vars.FNamePool = vars.GetStaticPointerFromSig("89 5C 24 ?? 89 44 24 ?? 74 ?? 48 8D 15", 0x13);
+    vars.GSyncLoadCount = vars.GetStaticPointerFromSig("33 C0 0F 57 C0 F2 0F 11 05", 0x21);
+    
     vars.watchers = new MemoryWatcherList
     {
-        new MemoryWatcher<int>(new DeepPointer(vars.UWorld, 0x170, 0x180)) { Name = "chapterID"},
-        new MemoryWatcher<int>(new DeepPointer(vars.UWorld, 0x170, 0x188)) { Name = "checkpointID"},
-        new MemoryWatcher<int>(new DeepPointer(vars.UWorld, 0x170, 0x2F8)) { Name = "shamanID"},
-        new MemoryWatcher<bool>(new DeepPointer(vars.UWorld, 0x170, 0x1E0, 0x974)) { Name = "isMoving"},
-        new MemoryWatcher<bool>(new DeepPointer(vars.UWorld, 0x170, 0x170, 0x1A8, 0x28, 0x130)) { Name = "loading"},
-        new MemoryWatcher<float>(new DeepPointer(vars.UWorld, 0x)) { Name = "exhaustLevel"}
+        new MemoryWatcher<int>(new DeepPointer(vars.GWorld, 0x170, 0x180)) { Name = "chapter"},
+        new MemoryWatcher<int>(new DeepPointer(vars.GWorld, 0x170, 0x188)) { Name = "checkpoint"},
+        new MemoryWatcher<int>(new DeepPointer(vars.GWorld, 0x170, 0x2F8)) { Name = "shaman"},
+        new MemoryWatcher<bool>(new DeepPointer(vars.GWorld, 0x170, 0x1E0, 0x974)) { Name = "isMoving"},
+        new MemoryWatcher<bool>(new DeepPointer(vars.GSyncLoadCount)) { Name = "loading"},
+        new MemoryWatcher<float>(new DeepPointer(vars.GWorld, 0x170, 0x1E0, 0x1228)) { Name = "exhaustLevel"}
     };
 }
 
 update
 {
     vars.watchers.UpdateAll(game);
-    current.chapterID = vars.watchers["chapterID"].current;
-    current.checkpointID = vars.watchers["checkpointID"].current;
-    current.shamanID = vars.watchers["shamanID"].current;
-    current.isMoving = vars.watchers["isMoving"].current;
-    current.loading = vars.watchers["loading"].current;
+    current.chapter = vars.GetNameFromFName(watchers["chapter"].Current);
+    current.checkpoint = vars.watchers["checkpoint"].Current;
+    current.shamanID = vars.watchers["shaman"].Current;
+    current.isMoving = vars.watchers["isMoving"].Current;
+    current.loading = vars.watchers["loading"].Current;
 
-    vars.exhaustLevel = (vars.watchers["exhaustLevel"].current * 100) + "%";
-
-    vars.chapterKey = current.chapterID + " " + current.checkpointID;
-    vars.chapter = vars.Chapters[vars.chapterKey];
+    current.exhaustLevel = (vars.watchers["exhaustLevel"].Current *100).ToString() + "%";
 
     if(settings["debugValues"])
     {
