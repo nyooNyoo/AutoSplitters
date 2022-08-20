@@ -2,12 +2,12 @@ state("Infused-Win64-Shipping"){}
 
 startup
 {
-    // Prompt to ask for game time
+    // Prompt to switch to Game Time
     if (timer.CurrentTimingMethod == TimingMethod.RealTime)
-    {        
+    {
         var timingMessage = MessageBox.Show (
-            "This game uses Time without Loads (Game Time) as the main timing method.\n"+
-            "LiveSplit is currently set to show Real Time (RTA).\n"+
+            "This game uses Time without Loads (Game Time) as the main timing method.\n" +
+            "LiveSplit is currently set to show Real Time (RTA).\n" +
             "Would you like to set the timing method to Game Time?",
             "LiveSplit | Spirit of The North",
             MessageBoxButtons.YesNo,MessageBoxIcon.Question
@@ -38,15 +38,14 @@ startup
     settings.Add("chapterSplit", true, "Split on chapter transition", "Splits");
     settings.Add("checkpointSplit", false, "Split on every checkpoint", "Splits");
     settings.Add("shamanSplit", false, "Split on getting a shaman", "Splits");
-    settings.Add("autoReset", false, "Automatically reset after making a new save");
+    settings.Add("autoReset", false, "Reset on loading the start of chapter 1", "Splits");
 
     settings.Add("ILMode", false, "IL Mode");
-    settings.Add("ILStart", true, "Start on moving in any chapter", "ILMode");
-    settings.Add("ILReset", false, "Reset on going to main menu", "ILMode");
+    settings.Add("ILstart", true, "Start timer on moving in any chapter", "ILMode");
+    settings.Add("ILreset", false, "Reset on starting a chapter over", "ILMode");
 
-    settings.Add("exhaustShow", false, "Shows your stamina in a new text element (Pre 1.3)");
-
-    settings.Add("debugValues", false, "[Debug] Show tracked values");
+    settings.Add("exhaustShow", false, "Shows your stamina in a new text element");
+    settings.Add("debugText", false, "[Debug] Show tracked values");
 }
 
 init
@@ -54,17 +53,19 @@ init
     int moduleSize = modules.First().ModuleMemorySize;
     switch (moduleSize)
     {
-        case 596:
+        case 57696256:
             version = "1.2";
             break;
-        case 0:
-            varsion = "1.3";
+        case 0: //TODO: Get Module Size for 1.3
+            version = "1.3";
             break;
         default:
-            version = "Unknown " + moduleSize.ToString;
+            version = "Unknown" + moduleSize.ToString();
             break;
     }
-    
+
+    //TODO: Solve sigscan, then solve fname name; current sigscan and fname variables borrowed from Micrologist.
+
     vars.GetStaticPointerFromSig = (Func<string, int, IntPtr>) ( (signature, instructionOffset) => {
         var scanner = new SignatureScanner(game, modules.First().BaseAddress, (int)modules.First().ModuleMemorySize);
         var pattern = new SigScanTarget(signature);
@@ -86,20 +87,18 @@ init
         return (partial == 0) ? output : output + "_" + partial.ToString();
     });
 
-    vars.GWorld = vars.GetStaticPointerFromSig("48 8B 5C 24 ?? 48 89 1D ???????? 48 85 DB", 0x8);
     vars.FNamePool = vars.GetStaticPointerFromSig("89 5C 24 ?? 89 44 24 ?? 74 ?? 48 8D 15", 0x13);
+    vars.GWorld = vars.GetStaticPointerFromSig("48 8B 1D ?? ?? ?? ?? 48 85 DB 74 ?? 41 B0 01", 0x3);
     vars.GSyncLoadCount = vars.GetStaticPointerFromSig("33 C0 0F 57 C0 F2 0F 11 05", 0x21);
-    
+
     vars.watchers = new MemoryWatcherList
     {
-        new MemoryWatcher<int>(new DeepPointer(vars.GWorld, 0x170, 0x180)) { Name = "chapter"},
-        new MemoryWatcher<int>(new DeepPointer(vars.GWorld, 0x170, 0x188)) { Name = "checkpoint"},
+        new MemoryWatcher<long>(new DeepPointer(vars.GWorld, 0x170, 0x180)) { Name = "chapter"},
+        new MemoryWatcher<long>(new DeepPointer(vars.GWorld, 0x170, 0x188)) { Name = "checkpoint"},
         new MemoryWatcher<int>(new DeepPointer(vars.GWorld, 0x170, 0x2F8)) { Name = "shaman"},
-
+        new MemoryWatcher<float>(new DeepPointer(vars.GWorld, 0x170, 0x1E0, 0x1228)) { Name = "exhaustLevel"},
         new MemoryWatcher<bool>(new DeepPointer(vars.GWorld, 0x170, 0x1E0, 0x974)) { Name = "moving"},
-        new MemoryWatcher<bool>(new DeepPointer(vars.GSyncLoadCount)) { Name = "loading"},
-
-        new MemoryWatcher<float>(new DeepPointer(vars.GWorld, 0x170, 0x1E0, 0x1228)) { Name = "exhaustLevel"}
+        new MemoryWatcher<bool>(new DeepPointer(vars.GSyncLoadCount)) { Name = "loading"}
     };
 }
 
@@ -110,19 +109,17 @@ update
     current.chapter = vars.GetNameFromFName(vars.watchers["chapter"].Current);
     current.checkpoint = vars.GetNameFromFName(vars.watchers["checkpoint"].Current);
     current.shaman = vars.watchers["shaman"].Current;
-
     current.moving = vars.watchers["moving"].Current;
     current.loading = vars.watchers["loading"].Current;
 
     current.exhaustLevel = ((1 - vars.watchers["exhaustLevel"].Current) * 100).ToString() + "%";
 
-    if(settings["debugValues"])
+    if(settings["debugText"])
     {
-        vars.SetTextComponent("Checkpoint", current.checkpoint);
         vars.SetTextComponent("Chapter", current.chapter);
+        vars.SetTextComponent("Checkpoint", current.checkpoint);
         vars.SetTextComponent("Shaman", current.shaman.ToString());
-
-        vars.SetTextComponent("Moving?", current.isMoving.ToString());
+        vars.SetTextComponent("Moving?", current.moving.ToString());
         vars.SetTextComponent("Loading?", current.loading.ToString());
     }
 
@@ -134,7 +131,7 @@ update
 
 start
 {
-    if(current.checkpoint == "00_01" || settings["ILStart"])
+    if(current.chapter == "Chapter1" || settings["ILstart"])
     {
         return current.moving;
     }
@@ -142,8 +139,8 @@ start
 
 split
 {
-    if((settings["chapterSplit"] && (current.chapter != old.chapter || current.checkpoint == "05_00" ||
-    (settings["checkpointSplit"] && current.checkpoint != old.checkpoint)
+    if((settings["chapterSplit"] && (current.chapter != old.chapter || current.checkpoint == "05_00")) ||
+    (settings["checkpointSplit"] && current.checkpoint != old.checkpoint))
     {
         return true;
     }
@@ -154,15 +151,14 @@ split
     }
 }
 
-loading
+isLoading
 {
     return current.loading;
 }
 
 reset
 {
-    if((settings["autoReset"] && current.chapter != old.chapter && current.chapter == "Chapter1") ||
-    (settings["ILReset"] && current.condition)
+    if(current.chapter != old.chapter && current.chapter == "Chapter1")
     {
         return true;
     }
