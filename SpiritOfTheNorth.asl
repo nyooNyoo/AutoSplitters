@@ -1,4 +1,4 @@
-state("Infused-Win64-Shipping"){}
+state("Infused-Win64-Shipping") {}
 
 startup
 {
@@ -34,6 +34,20 @@ startup
             textSetting.GetType().GetProperty("Text2").SetValue(textSetting, text);
     });
 
+    //TODO: 
+    //Get actuall chapter and checkpoint values, these are just placeholders
+    vars.startingCheckpoints = new Dictionary<string, string>()
+    {
+        { "00", "00_00"},
+        { "01", "01_00"},
+        { "02", "02_00"},
+        { "03", "03_00"},
+        { "04", "04_00"},
+        { "05", "05_00"},
+        { "06", "06_00"},
+        { "07", "07_00"},
+    };
+
     settings.Add("Splits", true, "Splits");
     settings.Add("chapterSplit", true, "Split on chapter transition", "Splits");
     settings.Add("checkpointSplit", false, "Split on every checkpoint", "Splits");
@@ -44,7 +58,10 @@ startup
     settings.Add("ILstart", true, "Start timer on moving in any chapter", "ILMode");
     settings.Add("ILreset", false, "Reset on starting a chapter over", "ILMode");
 
-    settings.Add("exhaustShow", false, "Shows your stamina in a new text element");
+    //TODO: 
+    //conditional exhaustShow only for version != 1.3
+    if(version != "1.3"){
+    settings.Add("exhaustShow", false, "Shows your stamina in a new text element");}
     settings.Add("debugText", false, "[Debug] Show tracked values");
 }
 
@@ -64,41 +81,24 @@ init
             break;
     }
 
-    //TODO: Solve sigscan, then solve fname name; current sigscan and fname variables borrowed from Micrologist.
+    var scanner = new SignatureScanner(game, game.BaseAddress, game.ModuleMemorySize);
 
-    vars.GetStaticPointerFromSig = (Func<string, int, IntPtr>) ( (signature, instructionOffset) => {
-        var scanner = new SignatureScanner(game, modules.First().BaseAddress, (int)modules.First().ModuleMemorySize);
-        var pattern = new SigScanTarget(signature);
-        var location = scanner.Scan(pattern);
-        if (location == IntPtr.Zero) return IntPtr.Zero;
-        int offset = game.ReadValue<int>((IntPtr)location + instructionOffset);
-        return (IntPtr)location + offset + instructionOffset + 0x4;
-    });
+    //TODO: FName Func
+    //vars.GetName = (Action<long, )
 
-    vars.GetNameFromFName = (Func<long, string>) ( longKey => {
-        int key = (int)(longKey & uint.MaxValue);
-        int partial = (int)(longKey >> 32);
-        int chunkOffset = key >> 16;
-        int nameOffset = (ushort)key;
-        IntPtr namePoolChunk = memory.ReadValue<IntPtr>((IntPtr)vars.FNamePool + (chunkOffset+2) * 0x8);
-        Int16 nameEntry = game.ReadValue<Int16>((IntPtr)namePoolChunk + 2 * nameOffset);
-        int nameLength = nameEntry >> 6;
-        string output = game.ReadString((IntPtr)namePoolChunk + 2 * nameOffset + 2, nameLength);
-        return (partial == 0) ? output : output + "_" + partial.ToString();
-    });
-
-    vars.FNamePool = vars.GetStaticPointerFromSig("89 5C 24 ?? 89 44 24 ?? 74 ?? 48 8D 15", 0x13);
-    vars.GWorld = vars.GetStaticPointerFromSig("48 8B 1D ?? ?? ?? ?? 48 85 DB 74 ?? 41 B0 01", 0x3);
-    vars.GSyncLoadCount = vars.GetStaticPointerFromSig("33 C0 0F 57 C0 F2 0F 11 05", 0x21);
+    //FnamePool & GSyncLoadCount signatures from Ero
+    var FNamePool = new SigScanTarget(3, "89 5C 24 ?? 89 44 24 ?? 74 ?? 48 8D 15");
+    var GWorld = new SigScanTarget(3, "48 8B 1D ?? ?? ?? ?? 48 85 DB 74 ?? 41 B0 01");
+    var GSyncLoadCount = new new SigScanTarget(21, "33 C0 0F 57 C0 F2 0F 11 05");
 
     vars.watchers = new MemoryWatcherList
     {
-        new MemoryWatcher<long>(new DeepPointer(vars.GWorld, 0x170, 0x180)) { Name = "chapter"},
-        new MemoryWatcher<long>(new DeepPointer(vars.GWorld, 0x170, 0x188)) { Name = "checkpoint"},
-        new MemoryWatcher<int>(new DeepPointer(vars.GWorld, 0x170, 0x2F8)) { Name = "shaman"},
-        new MemoryWatcher<float>(new DeepPointer(vars.GWorld, 0x170, 0x1E0, 0x1228)) { Name = "exhaustLevel"},
-        new MemoryWatcher<bool>(new DeepPointer(vars.GWorld, 0x170, 0x1E0, 0x974)) { Name = "moving"},
-        new MemoryWatcher<bool>(new DeepPointer(vars.GSyncLoadCount)) { Name = "loading"}
+        new MemoryWatcher<long>(new DeepPointer(GWorld, 0x170, 0x180)) { Name = "chapter"},
+        new MemoryWatcher<long>(new DeepPointer(GWorld, 0x170, 0x188)) { Name = "checkpoint"},
+        new MemoryWatcher<int>(new DeepPointer(GWorld, 0x170, 0x2F8)) { Name = "shaman"},
+        new MemoryWatcher<float>(new DeepPointer(GWorld, 0x170, 0x1E0, 0x1228)) { Name = "exhaustLevel"},
+        new MemoryWatcher<bool>(new DeepPointer(GWorld, 0x170, 0x1E0, 0x974)) { Name = "moving"},
+        new MemoryWatcher<bool>(new DeepPointer(GSyncLoadCount)) { Name = "loading"}
     };
 }
 
@@ -106,8 +106,8 @@ update
 {
     vars.watchers.UpdateAll(game);
 
-    current.chapter = vars.GetNameFromFName(vars.watchers["chapter"].Current);
-    current.checkpoint = vars.GetNameFromFName(vars.watchers["checkpoint"].Current);
+    current.chapter = vars.watchers["chapter"].Current;
+    current.checkpoint = vars.watchers["checkpoint"].Current;
     current.shaman = vars.watchers["shaman"].Current;
     current.moving = vars.watchers["moving"].Current;
     current.loading = vars.watchers["loading"].Current;
@@ -116,8 +116,8 @@ update
 
     if(settings["debugText"])
     {
-        vars.SetTextComponent("Chapter", current.chapter);
-        vars.SetTextComponent("Checkpoint", current.checkpoint);
+        vars.SetTextComponent("Chapter", current.chapter.ToString());
+        vars.SetTextComponent("Checkpoint", current.checkpoint.ToString());
         vars.SetTextComponent("Shaman", current.shaman.ToString());
         vars.SetTextComponent("Moving?", current.moving.ToString());
         vars.SetTextComponent("Loading?", current.loading.ToString());
@@ -131,7 +131,7 @@ update
 
 start
 {
-    if(current.chapter == "Chapter1" || settings["ILstart"])
+    if(current.checkpoint == "00_00" || settings["ILstart"])
     {
         return current.moving;
     }
@@ -139,15 +139,19 @@ start
 
 split
 {
-    if((settings["chapterSplit"] && (current.chapter != old.chapter || current.checkpoint == "05_00")) ||
-    (settings["checkpointSplit"] && current.checkpoint != old.checkpoint))
+    if(settings["chapterSplit"])
     {
-        return true;
+        return (current.chapter != old.chapter || (current.checkpoint != old.checkpoint && current.checkpoint == "05_00"));
     }
 
-    if(settings["shamanSplit"] && current.shaman != old.shaman)
+    if(settings["checkpointSplit"])
     {
-        return true;
+        return (current.checkpoint != old.checkpoint)
+    }
+
+    if(settings["shamanSplit"])
+    {
+        return (current.shaman != old.shaman);
     }
 }
 
@@ -158,8 +162,14 @@ isLoading
 
 reset
 {
-    if(current.chapter != old.chapter && current.chapter == "Chapter1")
+    if(settings["autoReset"])
     {
-        return true;
+        return (current.checkpoint != old.checkpoint && current.checkpoint == "00_00");
+    }
+
+    if(settings["ILreset"])
+    {
+        return (current.checkpoint != old.checkpoint && vars.startingCheckpoints[current.chapter] == current.checkpoint);
+
     }
 }
