@@ -35,6 +35,26 @@ startup
             textSetting.GetType().GetProperty("Text2").SetValue(textSetting, text);
     });
 
+    vars.chapterNames = new Dictionary<int, string>()
+    {
+        //1.02 Chapters
+        {429437, "Chapter 1"},
+        {429542, "Chapter 2"},
+        {429640, "Chapter 3"},
+        {429738, "Chapter 4"},
+        {429934, "Chapter 6"},
+        {429836, "Chapter 7"},
+        {430032, "Chapter 8"},
+        //1.05 Chapters
+        {471950, "Chapter 1"},
+        {472055, "Chapter 2"},
+        {472153, "Chapter 3"},
+        {472251, "Chapter 4"},
+        {472447, "Chapter 6"},
+        {472349, "Chapter 7"},
+        {472545, "Chapter 8"}
+    };
+
     #region Settings
     settings.Add("Splits", true, "Splits");
     settings.Add("chapterSplit", true, "Split on chapter transition", "Splits");
@@ -47,8 +67,8 @@ startup
     settings.Add("ILstart", true, "Start timer on moving in any chapter", "ILmode");
     settings.Add("ILreset", false, "Reset on starting a chapter over", "ILmode");
 
-    settings.Add("pre1.3", true, "Pre 1.3");
-    settings.Add("exhaustShow", false, "Show your stamina in a text element", "pre1.3");
+    settings.Add("1.02", true, "Pre 1.05");
+    settings.Add("exhaustShow", false, "Show your stamina in a text element", "1.02");
     settings.Add("debugText", false, "[Debug] Show tracked values");
     #endregion
 }
@@ -60,7 +80,7 @@ init
     switch (moduleSize)
     {
         case 57696256:
-            version = "1.2";
+            version = "1.02";
             vars.GWorld = 0x3371D88;
             vars.watchers = new MemoryWatcherList
             {
@@ -71,20 +91,10 @@ init
                 new MemoryWatcher<bool>(new DeepPointer(vars.GWorld, 0x170, 0x1E0, 0x974)) { Name = "moving"},
                 new MemoryWatcher<bool>(new DeepPointer(vars.GWorld, 0x170, 0x170, 0x1A8, 0x28, 0x130)) { Name = "loading"}
             };
-                vars.chapterNames = new Dictionary<int, string>()
-                {
-                    {429437, "Chapter 1"},
-                    {429542, "Chapter 2"},
-                    {429640, "Chapter 3"},
-                    {429738, "Chapter 4"},
-                    {429934, "Chapter 6"},
-                    {429836, "Chapter 7"},
-                    {430032, "Chapter 8"}
-                };
 
             break;
         case 72040448:
-            version = "1.3";
+            version = "1.05";
             vars.GWorld = 0x40AE870;
             vars.watchers = new MemoryWatcherList
             {
@@ -94,16 +104,6 @@ init
                 new MemoryWatcher<bool>(new DeepPointer(vars.GWorld, 0x180, 0x2A0, 0x804)) { Name = "moving"},
                 new MemoryWatcher<bool>(new DeepPointer(vars.GWorld, 0x180, 0x230, 0x1D8, 0x28, 0x130)) { Name = "loading"}
             };
-                vars.chapterNames = new Dictionary<int, string>()
-                {
-                    {471950, "Chapter 1"},
-                    {472055, "Chapter 2"},
-                    {472153, "Chapter 3"},
-                    {472251, "Chapter 4"},
-                    {472447, "Chapter 6"},
-                    {472349, "Chapter 7"},
-                    {472545, "Chapter 8"}
-                };
 
             break;
         default:
@@ -124,7 +124,7 @@ update
     current.moving = vars.watchers["moving"].Current;
     current.loading = vars.watchers["loading"].Current;
 
-    if(version != "1.3")
+    if(version != "1.05")
     {
         current.exhaustLevel = Math.Round((1 - vars.watchers["exhaustLevel"].Current) * 100).ToString() + "%";
     }
@@ -139,7 +139,7 @@ update
         vars.SetTextComponent("Loading?", current.loading.ToString());
     }
 
-    if(settings["exhaustShow"] && version != "1.3")
+    if(settings["exhaustShow"] && version != "1.05")
     {
         vars.SetTextComponent("Stamina", current.exhaustLevel);
     }
