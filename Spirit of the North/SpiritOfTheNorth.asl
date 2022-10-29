@@ -58,16 +58,17 @@ startup
     settings.Add("Splits", true, "Splits");
     settings.Add("chapterSplit", true, "Split on chapter transition", "Splits");
     settings.Add("checkpointSplit", false, "Split on every checkpoint", "Splits");
+    settings.Add("autoReset", false, "Reset automatically", "Splits");
+
     settings.Add("28", false, "28 Shamans", "Splits");
     settings.Add("shamanSplit", true, "Split on getting a shaman", "28");
-    settings.Add("autoReset", false, "Reset on loading start", "Splits");
 
     settings.Add("ILmode", false, "IL Mode");
-    settings.Add("ILreset", false, "Reset on starting a chapter over", "ILmode");
 
     settings.Add("Pre 1.05", true, "Pre 1.05");
     settings.Add("exhaustShow", false, "Show your stamina in a text element", "Pre 1.05");
-    settings.Add("debugText", false, "[Debug] Show tracked values");
+
+    //settings.Add("debugText", false, "[Debug] Show tracked values");
     #endregion
 }
 
@@ -90,14 +91,16 @@ init
 
 update
 {
+    /*
     if(settings["debugText"])
     {
-        vars.SetTextComponent("Current Chapter", vars.chapterCounter.ToString());
+        vars.SetTextComponent("Chapter Counter", vars.chapterCounter.ToString());
         vars.SetTextComponent("Checkpoint Counter", vars.checkpointCounter.ToString());
         vars.SetTextComponent("Shaman", current.shamanID.ToString());
         vars.SetTextComponent("Moving?", current.isMoving.ToString());
         vars.SetTextComponent("Loading?", current.isLoading.ToString());
     }
+    */
 
     if(settings["exhaustShow"] && version != "1.05")
     {
@@ -144,7 +147,7 @@ split
         if(current.checkpointID != old.checkpointID) //Because Chapter 5 is a checkpoint in Chapter 4 we just count the checkpoints
         {
             vars.checkpointCounter++;
-            return (vars.chapterCounter == 4 && ((!settings["28"] && vars.checkpointCounter == 2 ) || (settings["28"] && vars.checkpointCounter == 4)));
+            return ((vars.chapterCounter == 4 || settings["ILmode"]) && ((!settings["28"] && vars.checkpointCounter == 2 ) || (settings["28"] && vars.checkpointCounter == 4)));
         }
     }
 }
@@ -156,7 +159,7 @@ isLoading
 
 reset
 {
-    if(settings["autoReset"] || settings["ILreset"])
+    if(settings["autoReset"])
     {
         return ((current.checkpointID != old.checkpointID || current.isLoading != old.isLoading) && current.checkpointID == vars.firstCheckpoint);
     }
