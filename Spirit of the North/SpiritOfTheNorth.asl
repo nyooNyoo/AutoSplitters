@@ -1,7 +1,26 @@
-state("Infused-Win64-Shipping"){}
+state("Infused-Win64-Shipping", "[Steam] 1.02")
+{
+    int chapterID : 0x3371D88, 0x170, 0x180;
+    int checkpointID : 0x3371D88, 0x170, 0x188;
+    int shamanID : 0x3371D88, 0x170, 0x2F8;
+    bool isMoving : 0x3371D88, 0x170, 0x1E0, 0x974;
+    bool isLoading : 0x3371D88, 0x170, 0x170, 0x1A8, 0x28, 0x130;
+    float exhaustLevel : 0x3371D88, 0x170, 0x1E0, 0x1228;
+}
+state("Infused-Win64-Shipping", "[Steam] 1.05")
+{
+    int chapterID : 0x40AE870, 0x180, 0x240;
+    int checkpointID : 0x40AE870, 0x180, 0x248;
+    int shamanID : 0x40AE870, 0x180, 0x3B0;
+    bool isMoving : 0x40AE870, 0x180, 0x2A0, 0x804;
+    bool isLoading : 0x40AE870, 0x180, 0x230, 0x1D8, 0x28, 0x130;
+}
 
 startup
 {
+    vars.checkpointCounter = 0;
+    vars.chapterCounter = 1;
+
     // Prompt to switch to Game Time
     if (timer.CurrentTimingMethod == TimingMethod.RealTime)
     {
@@ -35,26 +54,6 @@ startup
             textSetting.GetType().GetProperty("Text2").SetValue(textSetting, text);
     });
 
-    vars.chapterNames = new Dictionary<int, string>()
-    {
-        //1.02 Chapters
-        {429437, "Chapter 1"},
-        {429542, "Chapter 2"},
-        {429640, "Chapter 3"},
-        {429738, "Chapter 4"},
-        {429934, "Chapter 6"},
-        {429836, "Chapter 7"},
-        {430032, "Chapter 8"},
-        //1.05 Chapters
-        {471950, "Chapter 1"},
-        {472055, "Chapter 2"},
-        {472153, "Chapter 3"},
-        {472251, "Chapter 4"},
-        {472447, "Chapter 6"},
-        {472349, "Chapter 7"},
-        {472545, "Chapter 8"}
-    };
-
     #region Settings
     settings.Add("Splits", true, "Splits");
     settings.Add("chapterSplit", true, "Split on chapter transition", "Splits");
@@ -64,11 +63,10 @@ startup
     settings.Add("autoReset", false, "Reset on loading start", "Splits");
 
     settings.Add("ILmode", false, "IL Mode");
-    settings.Add("ILstart", true, "Start timer on moving in any chapter", "ILmode");
     settings.Add("ILreset", false, "Reset on starting a chapter over", "ILmode");
 
-    settings.Add("1.02", true, "Pre 1.05");
-    settings.Add("exhaustShow", false, "Show your stamina in a text element", "1.02");
+    settings.Add("Pre 1.05", true, "Pre 1.05");
+    settings.Add("exhaustShow", false, "Show your stamina in a text element", "Pre 1.05");
     settings.Add("debugText", false, "[Debug] Show tracked values");
     #endregion
 }
@@ -76,35 +74,13 @@ startup
 init
 {
     int moduleSize = modules.First().ModuleMemorySize;
-    print("[INFUSED]" + moduleSize.ToString());
     switch (moduleSize)
     {
         case 57696256:
-            version = "1.02";
-            vars.GWorld = 0x3371D88;
-            vars.watchers = new MemoryWatcherList
-            {
-                new MemoryWatcher<int>(new DeepPointer(vars.GWorld, 0x170, 0x180)) { Name = "chapterID"},
-                new MemoryWatcher<int>(new DeepPointer(vars.GWorld, 0x170, 0x188)) { Name = "checkpoint"},
-                new MemoryWatcher<int>(new DeepPointer(vars.GWorld, 0x170, 0x2F8)) { Name = "shaman"},
-                new MemoryWatcher<float>(new DeepPointer(vars.GWorld, 0x170, 0x1E0, 0x1228)) { Name = "exhaustLevel"},
-                new MemoryWatcher<bool>(new DeepPointer(vars.GWorld, 0x170, 0x1E0, 0x974)) { Name = "moving"},
-                new MemoryWatcher<bool>(new DeepPointer(vars.GWorld, 0x170, 0x170, 0x1A8, 0x28, 0x130)) { Name = "loading"}
-            };
-
+            version = "[Steam] 1.02";
             break;
         case 72040448:
-            version = "1.05";
-            vars.GWorld = 0x40AE870;
-            vars.watchers = new MemoryWatcherList
-            {
-                new MemoryWatcher<int>(new DeepPointer(vars.GWorld, 0x180, 0x240)) { Name = "chapterID"},
-                new MemoryWatcher<int>(new DeepPointer(vars.GWorld, 0x180, 0x248)) { Name = "checkpoint"},
-                new MemoryWatcher<int>(new DeepPointer(vars.GWorld, 0x180, 0x3B0)) { Name = "shaman"},
-                new MemoryWatcher<bool>(new DeepPointer(vars.GWorld, 0x180, 0x2A0, 0x804)) { Name = "moving"},
-                new MemoryWatcher<bool>(new DeepPointer(vars.GWorld, 0x180, 0x230, 0x1D8, 0x28, 0x130)) { Name = "loading"}
-            };
-
+            version = "[Steam] 1.05";
             break;
         default:
             version = "Unknown" + moduleSize.ToString();
@@ -114,61 +90,38 @@ init
 
 update
 {
-    #region Variable Updates
-    vars.watchers.UpdateAll(game);
-
-    current.chapterID = vars.watchers["chapterID"].Current;
-    current.chapter = vars.chapterNames[current.chapterID];
-    current.checkpoint = vars.watchers["checkpoint"].Current;
-    current.shaman = vars.watchers["shaman"].Current;
-    current.moving = vars.watchers["moving"].Current;
-    current.loading = vars.watchers["loading"].Current;
-
-    if(version != "1.05")
-    {
-        current.exhaustLevel = Math.Round((1 - vars.watchers["exhaustLevel"].Current) * 100).ToString() + "%";
-    }
-    #endregion
-
     if(settings["debugText"])
     {
-        vars.SetTextComponent("Chapter", current.chapter);
-        vars.SetTextComponent("Checkpoint", current.checkpoint.ToString());
-        vars.SetTextComponent("Shaman", current.shaman.ToString());
-        vars.SetTextComponent("Moving?", current.moving.ToString());
-        vars.SetTextComponent("Loading?", current.loading.ToString());
+        vars.SetTextComponent("Current Chapter", vars.chapterCounter.ToString());
+        vars.SetTextComponent("Checkpoint Counter", vars.checkpointCounter.ToString());
+        vars.SetTextComponent("Shaman", current.shamanID.ToString());
+        vars.SetTextComponent("Moving?", current.isMoving.ToString());
+        vars.SetTextComponent("Loading?", current.isLoading.ToString());
     }
 
     if(settings["exhaustShow"] && version != "1.05")
     {
-        vars.SetTextComponent("Stamina", current.exhaustLevel);
+        vars.SetTextComponent("Stamina", Math.Round((1 - current.exhaustLevel) * 100).ToString() + "%");
     }
 }
 
 start
 {
-    if(settings["ILstart"])
-    {
-        return current.moving;
-    }
-
-    else if(current.chapter == "Chapter 1")
-    {
-        return current.moving;
-    }
+    return current.isMoving;
 }
 
 onStart
 {
-    vars.firstCheckpoint = current.checkpoint;
+    vars.firstCheckpoint = current.checkpointID;
     vars.checkpointCounter = 0;
+    vars.chapterCounter = 1;
 }
 
 split
 {
     if(settings["shamanSplit"])
     {
-        if(current.shaman != old.shaman)
+        if(current.shamanID != old.shamanID)
         {
             return true;
         }
@@ -176,29 +129,35 @@ split
     
     if(settings["checkpointSplit"])
     {
-        return (current.checkpoint != old.checkpoint);
+        return (current.checkpointID != old.checkpointID);
     }
 
     else if(settings["chapterSplit"] || settings["ILmode"])
     {
-        if(current.chapter == "Chapter 4" && current.checkpoint != old.checkpoint) //Because Chapter 5 is a checkpoint in Chapter 4 we just count the checkpoints
+        if(current.chapterID != old.chapterID)
+        {
+            vars.chapterCounter++;
+            vars.checkpointCounter = 0;
+            return true;
+        }
+
+        if(current.checkpointID != old.checkpointID) //Because Chapter 5 is a checkpoint in Chapter 4 we just count the checkpoints
         {
             vars.checkpointCounter++;
-            return ((!settings["28"] && vars.checkpointCounter == 2 ) || (settings["28"] && vars.checkpointCounter == 4));
+            return (vars.chapterCounter == 4 && ((!settings["28"] && vars.checkpointCounter == 2 ) || (settings["28"] && vars.checkpointCounter == 4)));
         }
-        return (current.chapter != old.chapter);
     }
 }
 
 isLoading
 {
-    return current.loading;
+    return current.isLoading;
 }
 
 reset
 {
     if(settings["autoReset"] || settings["ILreset"])
     {
-        return ((current.checkpoint != old.checkpoint || current.loading != old.loading) && current.checkpoint == vars.firstCheckpoint);
+        return ((current.checkpointID != old.checkpointID || current.isLoading != old.isLoading) && current.checkpointID == vars.firstCheckpoint);
     }
 }
