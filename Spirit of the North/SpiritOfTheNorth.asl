@@ -15,6 +15,14 @@ state("Infused-Win64-Shipping", "[Steam] 1.05")
     bool isMoving : 0x40AE870, 0x180, 0x2A0, 0x804;
     bool isLoading : 0x40AE870, 0x180, 0x230, 0x1D8, 0x28, 0x130;
 }
+state("Infused-Win64-Shipping", "[Epic] 1.05")
+{
+    int chapterID : 0x338A858, 0x170, 0x180;
+    int checkpointID : 0x338A858, 0x170, 0x188;
+    int shamanID : 0x338A858, 0x170, 0x2F8;
+    bool isMoving : 0x338A858, 0x170, 0x1E0, 0x974;
+    bool isLoading : 0x338A858, 0x170, 0x170, 0x1A8, 0x28, 0x130;
+}
 
 startup
 {
@@ -63,10 +71,8 @@ startup
     settings.Add("28", false, "28 Shamans", "Splits");
     settings.Add("shamanSplit", true, "Split on getting a shaman", "28");
 
-    settings.Add("ILmode", false, "IL Mode");
-
-    settings.Add("Pre 1.05", true, "Pre 1.05");
-    settings.Add("exhaustShow", false, "Show your stamina in a text element", "Pre 1.05");
+    settings.Add("Pre 1.05", false, "Pre 1.05");
+    settings.Add("exhaustShow", true, "Show your stamina in a text element", "Pre 1.05");
 
     //settings.Add("debugText", false, "[Debug] Show tracked values");
     #endregion
@@ -83,8 +89,11 @@ init
         case 72040448:
             version = "[Steam] 1.05";
             break;
+        case 57741312:
+            version = "[Epic] 1.05";
+            break;
         default:
-            version = "Unknown" + moduleSize.ToString();
+            version = "Unknown " + moduleSize.ToString();
             break;
     }
 }
@@ -102,7 +111,7 @@ update
     }
     */
 
-    if(settings["exhaustShow"] && version != "1.05")
+    if(settings["exhaustShow"] && version == "[Steam] 1.02")
     {
         vars.SetTextComponent("Stamina", Math.Round((1 - current.exhaustLevel) * 100).ToString() + "%");
     }
@@ -135,7 +144,7 @@ split
         return (current.checkpointID != old.checkpointID);
     }
 
-    else if(settings["chapterSplit"] || settings["ILmode"])
+    else if(settings["chapterSplit"])
     {
         if(current.chapterID != old.chapterID)
         {
@@ -147,7 +156,7 @@ split
         if(current.checkpointID != old.checkpointID) //Because Chapter 5 is a checkpoint in Chapter 4 we just count the checkpoints
         {
             vars.checkpointCounter++;
-            return ((vars.chapterCounter == 4 || settings["ILmode"]) && ((!settings["28"] && vars.checkpointCounter == 2 ) || (settings["28"] && vars.checkpointCounter == 4)));
+            return (vars.chapterCounter == 4 && ((!settings["28"] && vars.checkpointCounter == 2 ) || (settings["28"] && vars.checkpointCounter == 4)));
         }
     }
 }
