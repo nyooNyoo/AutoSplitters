@@ -15,13 +15,13 @@ state("Infused-Win64-Shipping", "[Steam] 1.05")
     bool isMoving : 0x40AE870, 0x180, 0x2A0, 0x804;
     bool isLoading : 0x40AE870, 0x180, 0x230, 0x1D8, 0x28, 0x130;
 }
-state("Infused-Win64-Shipping", "[Epic] 1.05")
+state("Infused-Win64-Shipping", "[Epic] 3.92.0")
 {
-    int chapterID : 0x338A858, 0x170, 0x180;
-    int checkpointID : 0x338A858, 0x170, 0x188;
-    int shamanID : 0x338A858, 0x170, 0x2F8;
-    bool isMoving : 0x338A858, 0x170, 0x1E0, 0x974;
-    bool isLoading : 0x338A858, 0x170, 0x170, 0x1A8, 0x28, 0x130;
+    int chapterID : 0x479C180, 0x180, 0x280;
+    int checkpointID : 0x479C180, 0x180, 0x288;
+    int shamanID : 0x479C180, 0x180, 0x3F8;
+    bool isMoving : 0x479C180, 0x180, 0x2E0, 0x804;
+    bool isLoading : 0x479C180, 0x180, 0x270, 0x1D8, 0x28, 0x130;
 }
 
 startup
@@ -89,8 +89,8 @@ init
         case 72040448:
             version = "[Steam] 1.05";
             break;
-        case 57741312:
-            version = "[Epic] 1.05";
+        case 79597568:
+            version = "[Epic] 3.92.0";
             break;
         default:
             version = "Unknown " + moduleSize.ToString();
@@ -100,7 +100,7 @@ init
 
 update
 {
-    /*
+    
     if(settings["debugText"])
     {
         vars.SetTextComponent("Chapter Counter", vars.chapterCounter.ToString());
@@ -109,7 +109,7 @@ update
         vars.SetTextComponent("Moving?", current.isMoving.ToString());
         vars.SetTextComponent("Loading?", current.isLoading.ToString());
     }
-    */
+    
 
     if(settings["exhaustShow"] && version == "[Steam] 1.02")
     {
